@@ -1,0 +1,19 @@
+# Binaries & build output
+bin/
+*.exe
+*.dll
+*.pdb
+
+# winpty DLLs are shipped with the repo (runtime dependency of the library)
+!ptygo/deps/winpty/*.dll
+!ptygo/deps/winpty/*.exe
+
+# Go workspace files
+go.work
+go.work.sum
+
+# Test artifacts
+*.log
+in.txt
+out.txt
+err.txt
