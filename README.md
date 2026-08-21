@@ -1,5 +1,7 @@
 # ptyterminal-go
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/gsw945/ptyterminal-go/ptygo.svg)](https://pkg.go.dev/github.com/gsw945/ptyterminal-go/ptygo) [![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/license/MIT)
+
 A Go implementation of the cross-platform pseudo terminal (PTY) library [PtyTerminal](https://github.com/gsw945/PtyTerminal) (.NET/C#): a cross-platform PTY library with usage demos.
 
 **English** | [简体中文](./README_zh.md)
