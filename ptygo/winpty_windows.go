@@ -134,6 +134,7 @@ func winptyError(what string, errPtr uintptr) error {
 type winptyConnection struct {
 	wp     uintptr // winpty agent handle
 	hProc  windows.Handle
+	job    windows.Handle // Job Object owning the child tree (0 = fallback)
 	inFile *os.File  // written by us (conin pipe)
 	outFile *os.File // read by us (conout pipe)
 	proc   *os.Process
@@ -254,6 +255,7 @@ func startWinpty(opts Options) (Connection, error) {
 	c := &winptyConnection{
 		wp:      wp,
 		hProc:   windows.Handle(hProcess),
+		job:     newProcessJob(windows.Handle(hProcess)),
 		inFile:  inFile,
 		outFile: outFile,
 		proc:    proc,
@@ -326,10 +328,12 @@ func (c *winptyConnection) Close() error {
 		}
 		// Closing a pipe handle does not cancel a pending synchronous ReadFile
 		// on Windows; without this a reader blocked in Read leaks forever.
+		terminateJob(c.job)
 		_ = windows.CancelIoEx(windows.Handle(c.outFile.Fd()), nil)
 		_ = c.inFile.Close()
 		_ = c.outFile.Close()
 		_, _, _ = winptyProcs.free.Call(c.wp)
+		closeJob(c.job)
 	})
 	return c.closeErr
 }
@@ -373,6 +377,9 @@ func (c *winptyConnection) Kill() error {
 	case <-c.done:
 		return nil
 	default:
+	}
+	if c.job != 0 {
+		return windows.TerminateJobObject(c.job, 1)
 	}
 	return windows.TerminateProcess(c.hProc, 1)
 }

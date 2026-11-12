@@ -120,10 +120,10 @@ func (c *unixConnection) Kill() error {
 	}
 
 	// The child is the session leader of the pty (setsid in forkpty), so
-	// signalling the process group reaches the whole tree. Fall back to a
+	// SIGKILL to the process group reaches the whole tree. Fall back to a
 	// plain kill of the process itself.
 	pid := c.cmd.Process.Pid
-	if err := syscall.Kill(-pid, syscall.SIGHUP); err == nil {
+	if err := syscall.Kill(-pid, syscall.SIGKILL); err == nil {
 		return nil
 	}
 	return c.cmd.Process.Kill()

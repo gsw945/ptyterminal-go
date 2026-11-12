@@ -267,6 +267,7 @@ type conptyConnection struct {
 	hProc   windows.Handle
 	pid     int
 	attrBuf []byte // keeps the attribute list memory alive until CreateProcess is done
+	job     windows.Handle // Job Object owning the child tree (0 = fallback)
 
 	// Pseudo-console side pipe handles; kept open for the lifetime of the
 	// session (closing them early breaks the ConPTY host connection).
@@ -462,6 +463,7 @@ func tryStartConpty(opts Options) (Connection, error) {	inRead, inWrite, err := 
 		outFile:     outFile,
 		hProc:       windows.Handle(pi.Process),
 		pid:         int(pi.ProcessID),
+		job:         newProcessJob(windows.Handle(pi.Process)),
 		attrBuf:     attrBuf,
 		ptyInRead:   inRead,
 		ptyOutWrite: outWrite,
@@ -520,6 +522,7 @@ func (c *conptyConnection) Close() error {
 			// Do not leave the child running when the session is closed.
 			_ = windows.TerminateProcess(c.hProc, 1)
 		}
+		terminateJob(c.job)
 		_, _, _ = procClosePseudoConsole.Call(uintptr(c.hPC))
 		// Closing a pipe handle does not cancel a pending synchronous ReadFile
 		// on Windows; without this the outputPump goroutine leaks forever.
@@ -528,6 +531,7 @@ func (c *conptyConnection) Close() error {
 		_ = c.outFile.Close()
 		_ = windows.CloseHandle(c.ptyInRead)
 		_ = windows.CloseHandle(c.ptyOutWrite)
+		closeJob(c.job)
 	})
 	return c.closeErr
 }
@@ -568,6 +572,9 @@ func (c *conptyConnection) Kill() error {
 	case <-c.done:
 		return nil
 	default:
+	}
+	if c.job != 0 {
+		return windows.TerminateJobObject(c.job, 1)
 	}
 	return windows.TerminateProcess(c.hProc, 1)
 }
