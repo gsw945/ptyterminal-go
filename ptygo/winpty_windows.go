@@ -324,6 +324,9 @@ func (c *winptyConnection) Close() error {
 		default:
 			_ = windows.TerminateProcess(c.hProc, 1)
 		}
+		// Closing a pipe handle does not cancel a pending synchronous ReadFile
+		// on Windows; without this a reader blocked in Read leaks forever.
+		_ = windows.CancelIoEx(windows.Handle(c.outFile.Fd()), nil)
 		_ = c.inFile.Close()
 		_ = c.outFile.Close()
 		_, _, _ = winptyProcs.free.Call(c.wp)

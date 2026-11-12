@@ -373,6 +373,9 @@ func (c *conptyConnection) outputPump() {
 			select {
 			case c.outputCh <- data:
 			case <-c.done:
+				// Close the channel so a consumer blocked in Read gets EOF
+				// instead of leaking; the err path below is mutually exclusive.
+				close(c.outputCh)
 				return
 			}
 		}
@@ -518,6 +521,9 @@ func (c *conptyConnection) Close() error {
 			_ = windows.TerminateProcess(c.hProc, 1)
 		}
 		_, _, _ = procClosePseudoConsole.Call(uintptr(c.hPC))
+		// Closing a pipe handle does not cancel a pending synchronous ReadFile
+		// on Windows; without this the outputPump goroutine leaks forever.
+		_ = windows.CancelIoEx(windows.Handle(c.outFile.Fd()), nil)
 		_ = c.inFile.Close()
 		_ = c.outFile.Close()
 		_ = windows.CloseHandle(c.ptyInRead)
