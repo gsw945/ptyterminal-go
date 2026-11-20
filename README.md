@@ -108,6 +108,13 @@ The `Connection` interface:
 | Older systems (no CreatePseudoConsole) | winpty (automatic fallback) |
 | `ForceWinPty: true` (or CLI `--winpty`) | winpty |
 
+**Ctrl+C with ConPTY**: creating a pseudo console leaves the *host* process ignoring
+Ctrl+C, which prevented `0x03` written to the input pipe from becoming a
+`CTRL_C_EVENT` in the child. The library now restores the default handler with
+`SetConsoleCtrlHandler(NULL, FALSE)` right after `CreatePseudoConsole` (the same
+step node-pty/VS Code performs), so Ctrl+C interrupts running programs under
+ConPTY. Regression tests cover both ConPTY and winpty.
+
 The winpty DLLs (`winpty.dll`/`winpty-agent.exe`/`winpty-debugserver.exe`) live in `ptygo/deps/winpty/`, same origin as C# PtyTerminal. At runtime they are looked up in this order:
 
 1. Env var `PTYGO_WINPTY_DLL` (full path to winpty.dll)
@@ -165,7 +172,7 @@ A coder/websocket based pty session management demo (protocol aligned with C# Pt
 
 ## Known Limitations
 
-- **winpty backend input-readiness quirk**: in long-running service processes (pty-web-signalr / pty-session), input written too early after spawn may be lost entirely (direct processes and the ConPTY backend are unaffected). The demos mitigate this with a first-input delay and session-channel readiness waiting; if automation still hits input loss, use the ConPTY backend or the C# PtyTerminal (production-verified stable).
+- **winpty first-input readiness**: the agent can drop bytes written before the shell produces its first output. The library now waits for that first output (or a 2s timeout) before the first `Write`, so callers no longer need a sleep. If a child prints nothing at startup, the first write may still be delayed.
 
 - In a "console-less automated environment" (CI, redirected pipes) this repository is tested as: **winpty backend stable; ConPTY backend has a Go-runtime-related initialization race** (cmd.exe occasionally fails with `0xC0000142` or exits right after printing the banner; interactive real terminals work fine). The ConPTY implementation has fixed three real bugs (double-NUL environment block, COORD passed by value, environment ordering) and includes readiness waiting with automatic retry; for stable automation use the winpty backend (`ForceWinPty: true` / `--winpty`)
 - Do not use Go runtime concurrency features inside a child created by `forkpty` (Unix)

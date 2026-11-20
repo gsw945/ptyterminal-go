@@ -1,4 +1,4 @@
-﻿// pty-web-signalr hosts a PTY shell in the browser over SignalR.
+// pty-web-signalr hosts a PTY shell in the browser over SignalR.
 //
 // Hub at /terminalHub, protocol aligned with the C# PtyWeb.SignalR demo:
 //   - client -> server: input(string) / resize(cols, rows)
@@ -35,7 +35,6 @@ type TerminalHub struct {
 
 	conn       ptygo.Connection
 	cancel     context.CancelFunc
-	inputOnce  sync.Once
 	resizeMu   sync.Mutex
 	latestCols int
 	latestRows int
@@ -96,13 +95,6 @@ func (h *TerminalHub) Input(data string) {
 	if h.conn == nil {
 		log.Printf("input dropped: pty never became ready")
 		return
-	}
-
-	if *forceWinpty {
-		// winpty quirk: input written before the agent finished attaching is
-		// lost entirely (observed in the web/signalr demos). Delay only the
-		// first write; the conpty backend has its own readiness gate.
-		h.inputOnce.Do(func() { time.Sleep(2 * time.Second) })
 	}
 
 	n, err := h.conn.Write([]byte(data))

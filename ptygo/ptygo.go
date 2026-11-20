@@ -51,10 +51,9 @@ type Connection interface {
 	io.Reader
 
 	// Writer returns a stream that is fed into the pty's input.
-	// Writes are delivered immediately (no internal buffering). One caveat:
-	// with the winpty backend the agent needs a moment to become ready after
-	// spawn, so input written too early may be lost; the web demos handle this
-	// by delaying the first write.
+	// Writes are delivered immediately (no internal buffering). The winpty
+	// backend waits for the shell's first output (or a short timeout) before
+	// the first write, so callers may write right after Start returns.
 	io.Writer
 
 	// Close releases all resources of the session. It is safe to call

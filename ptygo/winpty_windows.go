@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
@@ -143,6 +144,10 @@ type winptyConnection struct {
 	waitErr  error
 	exitCode int
 
+	readyCh   chan struct{} // closed after the child's first output
+	readyOnce sync.Once
+	writeOnce sync.Once
+
 	once     sync.Once
 	closeErr error
 }
@@ -260,6 +265,7 @@ func startWinpty(opts Options) (Connection, error) {
 		outFile: outFile,
 		proc:    proc,
 		done:    make(chan struct{}),
+		readyCh: make(chan struct{}),
 	}
 	go c.waitLoop()
 	return c, nil
@@ -312,10 +318,26 @@ func (c *winptyConnection) waitLoop() {
 }
 
 func (c *winptyConnection) Read(p []byte) (int, error) {
-	return c.outFile.Read(p)
+	n, err := c.outFile.Read(p)
+	if n > 0 {
+		c.readyOnce.Do(func() { close(c.readyCh) })
+	}
+	return n, err
 }
 
+// Write forwards input. The winpty agent can drop bytes written before the
+// shell has produced its first output, so the first write waits for readiness
+// (or a short timeout) instead of requiring a caller-side sleep.
 func (c *winptyConnection) Write(p []byte) (int, error) {
+	c.writeOnce.Do(func() {
+		timer := time.NewTimer(2 * time.Second)
+		defer timer.Stop()
+		select {
+		case <-c.readyCh:
+		case <-c.done:
+		case <-timer.C:
+		}
+	})
 	return c.inFile.Write(p)
 }
 

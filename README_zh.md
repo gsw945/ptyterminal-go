@@ -106,6 +106,12 @@ fmt.Println(conn.ExitCode())
 | 旧系统（无 CreatePseudoConsole） | winpty（自动回退） |
 | `ForceWinPty: true`（或 CLI `--winpty`） | winpty |
 
+**ConPTY 下的 Ctrl+C**：创建伪控制台会让**宿主进程**进入忽略 Ctrl+C 的状态，
+导致写入输入管道的 `0x03` 不会变成子进程的 `CTRL_C_EVENT`。库现在在
+`CreatePseudoConsole` 之后立即调用 `SetConsoleCtrlHandler(NULL, FALSE)` 恢复默认
+处理（与 node-pty / VS Code 相同），ConPTY 下 Ctrl+C 已能中断运行中的程序。
+ConPTY 与 winpty 两个后端都有回归测试。
+
 winpty DLL（`winpty.dll`/`winpty-agent.exe`/`winpty-debugserver.exe`）位于 `ptygo/deps/winpty/`，与 C# PtyTerminal 同源。运行时按以下顺序查找：
 
 1. 环境变量 `PTYGO_WINPTY_DLL`（指定 winpty.dll 的完整路径）

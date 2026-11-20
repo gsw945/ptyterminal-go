@@ -42,9 +42,6 @@ type Session struct {
 	history *historyBuffer
 	pool    *pond.WorkerPool // shared worker pool for output sends
 
-	inputOnce sync.Once
-	forceWin  bool
-
 	ended chan struct{} // closed when the pty exits
 }
 
@@ -107,14 +104,13 @@ func newSession(id, name string, cols, rows int, pool *pond.WorkerPool, forceWin
 	}
 
 	s := &Session{
-		ID:       id,
-		Name:     name,
-		Created:  time.Now(),
-		conn:     conn,
-		history:  newHistoryBuffer(historySize),
-		pool:     pool,
-		forceWin: forceWinpty,
-		ended:    make(chan struct{}),
+		ID:      id,
+		Name:    name,
+		Created: time.Now(),
+		conn:    conn,
+		history: newHistoryBuffer(historySize),
+		pool:    pool,
+		ended:   make(chan struct{}),
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -213,12 +209,9 @@ func (s *Session) Notify(v interface{}) {
 	}
 }
 
-// Write forwards client input to the pty. With the winpty backend the agent
-// needs a moment to become ready for input, so the first write is delayed.
+// Write forwards client input to the pty. The ptygo winpty backend gates the
+// first write on the shell's first output, so no caller-side delay is needed.
 func (s *Session) Write(data []byte) error {
-	if s.forceWin {
-		s.inputOnce.Do(func() { time.Sleep(2 * time.Second) })
-	}
 	n, err := s.conn.Write(data)
 	log.Printf("[%s] input write n=%d err=%v", s.ID, n, err)
 	return err

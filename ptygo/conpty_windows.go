@@ -411,6 +411,12 @@ func tryStartConpty(opts Options) (Connection, error) {	inRead, inWrite, err := 
 		cleanupHandles()
 		return nil, err
 	}
+	// CreatePseudoConsole leaves the calling process ignoring Ctrl+C while the
+	// pseudo console exists. Without restoring the default handler, writing
+	// 0x03 to the input pipe does NOT become CTRL_C_EVENT in the child, so
+	// running programs (ping, sleeps, builds) cannot be interrupted. node-pty
+	// performs the same call right after creating the pseudo console.
+	_, _, _ = modKernel32.NewProc("SetConsoleCtrlHandler").Call(0, 0)
 
 	attrList, attrBuf, err := initializeProcThreadAttributeList(1)
 	if err != nil {
